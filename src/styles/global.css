@@ -1,0 +1,53 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  outline: 0;
+}
+
+html, body { 
+  font-size: 0.875rem;
+  -webkit-font-smoothing: antialiased;
+
+  height: 10vh;
+  min-height: 100vh;
+}
+
+input:focus{ 
+  box-shadow: 0 0 1px #07ff;
+  cursor: pointer;
+}
+
+#dragover {
+  height: 100%;
+  min-height: 100vh;
+  background-color: white;
+  background-color: #808080; 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+form {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+main {
+  min-height: 300px;
+
+  width: 100%;
+  max-width: 750px;
+  margin: 0 2rem;
+  background-color: white;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1rem; 
+
+  padding: 3rem;
+}
