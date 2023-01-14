@@ -1,142 +1,200 @@
+import { DragEvent, MouseEvent, useEffect, useRef, useState } from "react";
+import { initializeApp } from "firebase/app";
+import { v4 as uuidV4 } from "uuid";
 import {
-  DragEvent,
-  FormEvent,
-  MouseEvent,
-  MouseEventHandler,
-  useEffect,
-} from "react";
+  getStorage,
+  ref,
+  uploadBytes,
+  deleteObject,
+  getBlob,
+  list,
+  StorageReference,
+} from "firebase/storage";
+
+import { CloudArrowUp } from "phosphor-react";
+
+import { File } from "./components/DesciptionFiles";
+
 import "./styles/global.css";
 
+type Files = {
+  title: string;
+  url: string;
+  id: string;
+  loaded: boolean;
+  file?: File;
+  type: string;
+  sizeOut: boolean;
+};
+
 function App() {
+  const app = initializeApp({
+    storageBucket: import.meta.env.VITE_URL,
+  });
+
+  const [files, setFiles] = useState<Files[]>([]);
+  const isInvalid = useRef<boolean>(false);
+  const filesCurrent = useRef<Files[]>([]);
+  const filesLoaded = useRef<Files[]>([]);
+
+  const [dragover, setDragOver] = useState<boolean>(false);
+
+  const storage = getStorage(app);
+  const refApp = ref(storage);
+
+  useEffect(() => {
+    async function buildFiles(item: StorageReference, size: number) {
+      const refFile = ref(storage, item.fullPath);
+      const blob = await getBlob(refFile);
+      const value = {
+        id: item.name,
+        loaded: true,
+        sizeOut: true,
+        title: item.name,
+        type: item.name,
+        url: URL.createObjectURL(blob),
+      } as Files;
+      filesLoaded.current = [...filesLoaded.current, value];
+
+      if (filesLoaded.current.length === size) {
+        setFiles(filesLoaded.current);
+      }
+    }
+
+    async function getFiles() {
+      const files = await list(refApp).then((files) => {
+        return files;
+      });
+      files.items.forEach(async (item) => {
+        await buildFiles(item, files.items.length);
+      });
+    }
+
+    getFiles();
+  }, []);
+
+  function changeLoadedState(id: string) {
+    const file = filesCurrent.current.map((item) => {
+      if (item.id === id) {
+        return {
+          ...item,
+          loaded: true,
+        };
+      }
+      return item;
+    });
+
+    filesCurrent.current = file;
+    setFiles(file);
+  }
+
+  async function sendFirebase() {
+    filesCurrent.current.forEach(async (file) => {
+      if (file.sizeOut && file.file) {
+        const nameFile = ref(storage, file.file.name);
+        await uploadBytes(nameFile, file.file).then(() => {
+          changeLoadedState(file.id);
+        });
+      }
+    });
+  }
+
+  async function handleRemoveFiles(id: string) {
+    let file: Files = {} as Files;
+    const filter = files.filter((item) => {
+      if (item.id === id) {
+        URL.revokeObjectURL(item.url);
+        file = item;
+        return false;
+      }
+      return true;
+    });
+
+    const refFile = ref(storage, file?.file?.name || file.id);
+    await deleteObject(refFile);
+
+    setFiles(filter);
+  }
+
+  async function handleFiles(filesList: FileList) {
+    const input = document.getElementById("files");
+    const inputSize = input?.getAttribute("size") as string;
+
+    const filesMap = Object.entries(filesList).map(
+      (file: [string, File]) =>
+        ({
+          id: uuidV4(),
+          file: file[1],
+          loaded: false,
+          title: file[1].name,
+          url: URL.createObjectURL(file[1]),
+          type: file[1].type,
+          sizeOut: file[1].size <= +inputSize,
+        } as Files)
+    );
+
+    setFiles((prev) => {
+      let files = filesMap.filter((item) => {
+        let isTrue = true;
+        prev.forEach((file) => {
+          if (file.title === item.title) {
+            isTrue = false;
+          }
+        });
+
+        return isTrue;
+      });
+      files = [...files, ...prev];
+      filesCurrent.current = files;
+      if (files !== prev) {
+        sendFirebase();
+      }
+      return files;
+    });
+  }
+
   function onDragOver(e: DragEvent<HTMLElement>) {
     e.stopPropagation();
     e.preventDefault();
-    const inputAccept = document.getElementById("files")?.getAttribute('accept') as string;
-    console.log(inputAccept, 'oiii');
+    if (!dragover) {
+      setDragOver(true);
+    }
+
+    const input = document.getElementById("files");
+    const inputAccept = input?.getAttribute("accept") as string;
     e.dataTransfer.dropEffect = "copy";
-    const files = Object.entries(e.dataTransfer.items).map((item: [string, DataTransferItem]) => ({
-      kind: item[1].kind, 
-      type: item[1].type,
-    }) )
 
-    const isInvalid = files.every((item) => inputAccept.includes(item.type) ) 
+    const files = Object.entries(e.dataTransfer.items).map(
+      (item: [string, DataTransferItem]) => ({
+        kind: item[1].kind,
+        type: item[1].type,
+      })
+    );
 
-    console.log(files, isInvalid)
+    isInvalid.current = !files.every((item) => inputAccept.includes(item.type));
   }
 
   function onDrop(e: DragEvent<HTMLElement>) {
     e.stopPropagation();
     e.preventDefault();
-    const input: HTMLInputElement = document.querySelector("#files")!;
-    const files = e.dataTransfer.files;
-    input.files = files;
-
-    // console.log(input.files);
-    const file = new FileReader();
-
-    file.addEventListener("load", (e) => {
-      const img: HTMLImageElement = document.querySelector("#img")!;
-      // img.src = e.target?.result as string;
-    });
-    file.addEventListener("progress", (e) => {
-      console.log(Math.round((e.loaded / e.total) * 100));
-    });
-    const main = document.querySelector("#container");
-    console.log("submit", e);
-    // const values = new FormData(e.currentTarget);
-
-    const documents: HTMLInputElement = document.querySelector("#files")!;
-    const filesLoad: { name: string; url: string }[] = [];
-
-    function teste(item: File) {
-      const filer = new FileReader();
-      filer.readAsDataURL(item);
-
-      filer.addEventListener("load", () => {
-        filesLoad.push({
-          name: item.name,
-          url: filer.result as string,
-        });
-
-        const div = document.createElement("a");
-        div.style.backgroundImage = `url(${filer.result})`;
-        div.style.backgroundColor = "black";
-        div.style.backgroundSize = `cover`;
-        div.style.backgroundRepeat = "no-repeat";
-
-        div.style.height = "60px";
-        div.style.width = "60px";
-        div.style.borderRadius = "8px";
-        div.href = URL.createObjectURL(
-          new Blob([item.slice()], {
-            type: item.type,
-          })
-        );
-        div.download ='teste'
-        div.target = "_blank";
-
-        div.addEventListener('click', (e) => e.stopPropagation() )
-
-        main?.appendChild(div);
-        console.log(files, "oi files");
-      });
+    if (!isInvalid.current) {
+      const files = e.dataTransfer.files;
+      handleFiles(files);
     }
 
-    Object.entries(documents.files as Object).forEach(
-      (item: [string, File]) => {
-        teste(item[1]);
-      }
-    );
-
-    file.readAsDataURL(files[0]);
+    if (isInvalid.current) {
+      isInvalid.current = false;
+    }
+    if (dragover) setDragOver(false);
   }
 
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
+  function onDragLeave(e: DragEvent) {
+    e.stopPropagation();
     e.preventDefault();
-    const main = document.querySelector("#container");
-    const documents: HTMLInputElement = document.querySelector("#files")!;
-    const files: { name: string; url: string }[] = [];
-    function teste(item: File) {
-      const filer = new FileReader();
-      filer.readAsDataURL(item);
-
-      filer.addEventListener("load", () => {
-        files.push({
-          name: item.name,
-          url: filer.result as string,
-        });
-
-        const div = document.createElement("div");
-        div.style.backgroundImage = `url(${filer.result})`;
-        div.style.backgroundColor = "black";
-        div.style.backgroundSize = `cover`;
-        div.style.backgroundRepeat = "no-repeat";
-
-        div.style.height = "60px";
-        div.style.width = "60px";
-        div.style.borderRadius = "8px";
-
-        main?.appendChild(div);
-        console.log(files, "oi files");
-      });
+    if (isInvalid.current) {
+      isInvalid.current = false;
     }
-    Object.entries(documents.files as Object).forEach(
-      (item: [string, File]) => {
-        teste(item[1]);
-      }
-    );
-
-    // const filer = new FileReader()
-    // files.forEach((item, index ) => {
-    //   console.log(item[index])
-
-    //   // filer.addEventListener('load',( file ) => {
-
-    //   // })
-
-    //   filer.readAsDataURL(item[index])
-
-    // })
+    if (dragover) setDragOver(false);
   }
 
   function openSearchFiles(e: MouseEvent<HTMLElement>) {
@@ -148,28 +206,96 @@ function App() {
 
   return (
     <div id="dragover">
-      <form id="form" onSubmit={onSubmit}>
+      <div
+        style={{
+          display: "flex",
+          maxWidth: "750px",
+          width: "100%",
+          margin: "2rem",
+          gap: "1rem",
+          alignItems: "center",
+          flexDirection: "column",
+          justifyContent: "center",
+        }}
+      >
         <main
+          data-state={
+            isInvalid.current && dragover
+              ? "invalid"
+              : !isInvalid.current && dragover
+              ? "valid"
+              : ""
+          }
           onDragOver={onDragOver}
           onDrop={onDrop}
+          onDragLeave={onDragLeave}
           id="container"
           onClick={openSearchFiles}
+          style={{
+            position: "relative",
+          }}
         >
+          <div id="content">
+            <CloudArrowUp
+              id="text-content"
+              size={80}
+              color={
+                isInvalid.current && dragover
+                  ? "#C53030"
+                  : !isInvalid.current && dragover
+                  ? "#48BB78"
+                  : "#c4c4c4"
+              }
+            />
+            <span id="text-content">
+              {isInvalid.current
+                ? "Arquivos inválidos"
+                : "Arraste seus aquivos aqui"}
+            </span>
+          </div>
           <input
             type="file"
             multiple
+            size={1024 * 1024 * 3}
             id="files"
             name="file"
-            accept="image/png, image/jpeg"
+            accept="image/png, image/jpeg, application/pdf"
             onChange={(e) => {
-              console.log(e, 'oi input  ')
+              e.stopPropagation();
+              handleFiles(e.target.files as any);
             }}
             style={{ display: "none" }}
           />
-          {/* <img src="" alt="" id="img" height={60} width={60} /> */}
         </main>
-      </form>
-      <button form="form"> enviar</button>
+        <div
+          style={{
+            backgroundColor: "#fff",
+            padding: "1rem 0",
+            borderRadius: "8px",
+            width: "100%",
+            textAlign: "center",
+            color: "#4A5568",
+          }}
+        >
+          {files.length > 0 ? (
+            files.map(({ id, title, url, loaded, type, sizeOut }) => (
+              <File
+                loaded={loaded}
+                title={title}
+                key={id}
+                sizeOut={sizeOut}
+                url={url}
+                type={type}
+                onRemove={() => {
+                  handleRemoveFiles(id);
+                }}
+              />
+            ))
+          ) : (
+            <p>Não há nenhum arquivo até o momento</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

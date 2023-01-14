@@ -21,11 +21,11 @@ input:focus{
 #dragover {
   height: 100%;
   min-height: 100vh;
-  background-color: white;
-  background-color: #808080; 
+  background-color: #322659; 
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
+  padding-top: 5rem;
 }
 
 form {
@@ -45,9 +45,41 @@ main {
   border-radius: 8px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
   gap: 1rem; 
 
-  padding: 3rem;
+  padding: 3rem 0;
+
+  border: 4px dashed #ccc;
+}
+
+#content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: '.8rem';
+  justify-content: center;
+  align-items: center;
+}
+
+#container[data-state='invalid'] {
+  border-color: #C53030;
+}
+
+#container[data-state='valid']{
+  border-color: #48BB78;
+}
+
+#container[data-state='invalid'] svg, #container[data-state='invalid'] span {
+  color: #C53030 !important; 
+}
+#container[data-state='valid'] svg, #container[data-state='valid'] span {
+  color: #48BB78 !important; 
+}
+
+#content span {
+  color: #c4c4c4;
+} 
+
+#line:hover {
+    background-color: #EDF2F7;
 }
