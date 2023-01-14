@@ -79,6 +79,7 @@ function App() {
         return {
           ...item,
           loaded: true,
+          ...(!item.sizeOut && { sizeOut: true }),
         };
       }
       return item;
@@ -109,9 +110,10 @@ function App() {
       }
       return true;
     });
-
-    const refFile = ref(storage, file?.file?.name || file.id);
-    await deleteObject(refFile);
+    if (file.loaded) {
+      const refFile = ref(storage, file?.file?.name || file.id);
+      await deleteObject(refFile);
+    }
 
     setFiles(filter);
   }
@@ -144,7 +146,18 @@ function App() {
 
         return isTrue;
       });
-      files = [...files, ...prev];
+      const filesUpdate = prev.map((file, index) => {
+        const fileMap = filesMap[index];
+        if (file.title === fileMap?.title && fileMap.sizeOut !== file.sizeOut) {
+          return {
+            ...file,
+            sizeOut: fileMap.sizeOut,
+          };
+        }
+        return file;
+      });
+
+      files = [...files, ...filesUpdate];
       filesCurrent.current = files;
       if (files !== prev) {
         sendFirebase();
@@ -256,7 +269,7 @@ function App() {
           <input
             type="file"
             multiple
-            size={1024 * 1024 * 3}
+            size={ 1024 * 1024 * 3}
             id="files"
             name="file"
             accept="image/png, image/jpeg, application/pdf"
